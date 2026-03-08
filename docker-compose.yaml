@@ -1,4 +1,29 @@
-server:
-  web:
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: miko
+      POSTGRES_PASSWORD: miko123
+      POSTGRES_DB: pendapatan-daerah
+    ports:
+      - "8020:8020"
     volumes:
-      - ./:/etc/share/nginx
+      - postgre_data:/var/lib/postgresql/data
+  backend:
+    build: ./backend
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:5432"
+    depends_on:
+      - db
+  web:
+    image: nginx:alpine
+    ports:
+      - "8080:8080"
+    depends_on:
+      - backend
+    volumes:
+      - ./nginx.conf:/etc/share/nginx/conf.d/default.conf
+volumes:
+  postgre_data:
