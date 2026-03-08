@@ -1,0 +1,4 @@
+server:
+  web:
+    volumes:
+      - ./:/etc/share/nginx
