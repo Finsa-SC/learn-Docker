@@ -6,24 +6,22 @@ services:
       POSTGRES_PASSWORD: miko123
       POSTGRES_DB: pendapatan-daerah
     ports:
-      - "8020:8020"
+      - "8020:5432"
     volumes:
       - postgre_data:/var/lib/postgresql/data
   backend:
     build: ./backend
     volumes:
       - ./backend:/app
-    ports:
-      - "8000:5432"
     depends_on:
       - db
   web:
     image: nginx:alpine
     ports:
-      - "8080:8080"
+      - "8080:80"
     depends_on:
       - backend
     volumes:
-      - ./nginx.conf:/etc/share/nginx/conf.d/default.conf
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
 volumes:
   postgre_data:
