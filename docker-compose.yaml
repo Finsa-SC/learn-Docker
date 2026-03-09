@@ -2,6 +2,8 @@ services:
   db:
     image: postgres:15-alpine
     container_name: miko-db
+    env_file:
+      - .env
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -18,8 +20,14 @@ services:
     build: ./backend
     container_name: miko-backend
     restart: on-failure:5
+    env_file:
+      - .env
     volumes:
       - ./backend:/app
+    environment:
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
     depends_on:
       db:
         condition: service_healthy

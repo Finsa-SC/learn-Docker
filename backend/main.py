@@ -3,15 +3,41 @@ from fastapi import FastAPI, HTTPException, status
 import psycopg2
 import time
 from database import init_db
+from pydantic import BaseModel, Field
+from contextlib import asynccontextmanager
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("Initializing database")
+    init_db()
 
-db_user = os.getenv("DB_USER")
-db_password = os.getenv("DB_PASSWORD")
-db_name = os.getenv("DB_NAME")
-host = 'db'
+    yield
+    print("Cleaning up resources")
 
-DATABASE_URL = f"postgresql://{db_user}:{db_password}@{host}:5432/{db_name}"
+app = FastAPI(lifespan=lifespan)
+
+#Model
+class userRegistry(BaseModel):
+    username: str = Field(..., min_length=4, max_length=50, description="Username for login", examples=["Mikohara_Kohane"])
+    password: str = Field(..., min_length=8, description="password minimum 8 character")
+    confirmPassword: str = Field(..., min_length=8, description="confirm password, make sure the password is the same")
+
+class Settings(BaseSettings):
+    DB_USER: str
+    DB_PASSWORD: str
+    DB_NAME: str
+    host: str = 'db'
+    model_config = SettingsConfigDict(
+        extra = "ignore"
+    )
+try:
+    settings = Settings()
+except Exception as e:
+    print(f"ERROR: Incomplete Credential. {e}")
+    exit(1)
+
+DATABASE_URL = f"postgresql://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.host}:5432/{settings.DB_NAME}"
 
 def get_db_connection():
     retries = 5
@@ -19,20 +45,20 @@ def get_db_connection():
         try:
             conn = psycopg2.connect(DATABASE_URL)
             return conn
-        except Exception as e:
-            print(f"Trying to connect to database... {e}")
+        except Exception as x:
+            print(f"Trying to connect to database... {x}")
             time.sleep(2)
             retries -= 1
     raise Exception("Couldn't open database...")
 
 
-@app.on_event("startup")
-def startap_event():
-    init_db()
-
 @app.get("/")
 def read_root():
     return{"message": "Welcome to pendapatan daerah api root page"}
+
+@app.get("/health")
+def check_health():
+    return {"status": "ok"}
 
 @app.get("/check-db")
 def check_db():
@@ -65,18 +91,18 @@ def login(username: str, password: str):
         conn.close()
 
 @app.post("/register")
-def register(username: str, password:str, confirmPassword:str):
+def register(user: userRegistry):
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        if password != confirmPassword:
+        if user.password != user.confirmPassword:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="password doesn't match"
             )
 
         cur.execute(
-            "INSERT INTO users (username, password) VALUES (%s, %s)", (username, password)
+            "INSERT INTO users (username, password) VALUES (%s, %s)", (user.username, user.password)
         )
         conn.commit()
         return{"status": "success", "message": "success create new account"}

@@ -11,7 +11,8 @@ password=os.getenv("DB_PASSWORD")
 DATABASE_URL = f"postgresql://{user}:{password}@{host}:5432/{database}"
 
 def init_db():
-    while True:
+    retries = 5
+    while retries > 0:
         try:
             conn = psycopg2.connect(DATABASE_URL)
             cur= conn.cursor()
@@ -29,4 +30,5 @@ def init_db():
             break
         except Exception as e:
             print(f"Failed creating database, try to create again... {e}")
+            retries -= 1
             sleep(2)
