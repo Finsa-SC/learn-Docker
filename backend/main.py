@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, HTTPException, status
 import psycopg2
 import time
@@ -5,21 +6,24 @@ from database import init_db
 
 app = FastAPI()
 
+db_user = os.getenv("DB_USER")
+db_password = os.getenv("DB_PASSWORD")
+db_name = os.getenv("DB_NAME")
+host = 'db'
+
+DATABASE_URL = f"postgresql://{db_user}:{db_password}@{host}:5432/{db_name}"
 
 def get_db_connection():
-    while True:
+    retries = 5
+    while retries > 0:
         try:
-            conn = psycopg2.connect(
-                host='db',
-                database='pendapatan-daerah',
-                user='miko',
-                password='miko123',
-                port='5432'
-            )
+            conn = psycopg2.connect(DATABASE_URL)
             return conn
         except Exception as e:
             print(f"Trying to connect to database... {e}")
             time.sleep(2)
+            retries -= 1
+    raise Exception("Couldn't open database...")
 
 
 @app.on_event("startup")

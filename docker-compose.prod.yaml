@@ -1,0 +1,22 @@
+services:
+  db:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
+  backend:
+    restart: on-failure:5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
+  web:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M

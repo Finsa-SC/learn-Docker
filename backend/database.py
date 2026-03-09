@@ -1,16 +1,19 @@
+import os
+
 import psycopg2
 from time import sleep
+
+host='db'
+database=os.getenv("DB_NAME")
+user=os.getenv("DB_USER")
+password=os.getenv("DB_PASSWORD")
+
+DATABASE_URL = f"postgresql://{user}:{password}@{host}:5432/{database}"
 
 def init_db():
     while True:
         try:
-            conn = psycopg2.connect(
-                host='db',
-                database='pendapatan-daerah',
-                user='miko',
-                password='miko123',
-                port='5432'
-            )
+            conn = psycopg2.connect(DATABASE_URL)
             cur= conn.cursor()
             cur.execute("""
                 create table if not exists users (
