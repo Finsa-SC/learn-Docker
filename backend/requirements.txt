@@ -3,3 +3,6 @@ uvicorn
 psycopg2-binary
 pydantic
 pydantic-settings
+pwdlib[bcrypt]
+argon2-cffi
+python-jose

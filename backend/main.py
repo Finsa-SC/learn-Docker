@@ -1,7 +1,7 @@
-import os
 from fastapi import FastAPI, HTTPException, status
 import psycopg2
 import time
+from security import hash_password, verify_password, create_access_token
 from database import init_db
 from pydantic import BaseModel, Field
 from contextlib import asynccontextmanager
@@ -75,15 +75,22 @@ def login(username: str, password: str):
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        i = cur.execute(
-            "SELECT * FROM users WHERE username = %s AND password = %s", (username, password)
+        cur.execute(
+            "SELECT password FROM users WHERE username = %s", (username,)
         )
         user = cur.fetchone()
-        if user:
-            return {"status": "success", "message": "Login Success"}
-        else:
+        if not user:
             raise HTTPException(
                 status_code= status.HTTP_401_UNAUTHORIZED,
+                detail="username or password wrong"
+            )
+        stored_password = user[0]
+        if verify_password(password, stored_password):
+            access_token = create_access_token({"sub": username})
+            return {"type_token": "bearer", "token": access_token}
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="username or password wrong"
             )
     finally:
@@ -92,17 +99,19 @@ def login(username: str, password: str):
 
 @app.post("/register")
 def register(user: userRegistry):
+    ##password matching
+    if user.password != user.confirmPassword:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="password doesn't match"
+        )
+
+    hashed_password = hash_password(user.password)
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        if user.password != user.confirmPassword:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="password doesn't match"
-            )
-
         cur.execute(
-            "INSERT INTO users (username, password) VALUES (%s, %s)", (user.username, user.password)
+            "INSERT INTO users (username, password) VALUES (%s, %s)", (user.username, hashed_password)
         )
         conn.commit()
         return{"status": "success", "message": "success create new account"}
@@ -112,10 +121,10 @@ def register(user: userRegistry):
             status_code=status.HTTP_409_CONFLICT,
             detail="Username already exists"
         )
-    except Exception as e:
+    except Exception as ex:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database Error: {e}"
+            detail=f"Database Error: {ex}"
         )
     finally:
         cur.close()
