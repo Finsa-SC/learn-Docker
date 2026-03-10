@@ -15,12 +15,16 @@ def hash_password(password: str) -> str:
 def verify_password(password_input: str, password: str) -> bool:
     return pwd_context.verify(password_input, password)
 
+
+## token
+SECURITY_KEY = os.getenv("SECRET_KEY", "super-secret-key-arch-linux-user")
+if not SECURITY_KEY:
+    raise RuntimeError("Secret key must be set in environment variable")
+ALGORITHMS = "HS256"
+EXPIRED_TIME = 30
+
 def create_access_token(data: dict):
     to_encode = data.copy()
-
-    SECURITY_KEY = os.getenv("SECRET_KEY", "super-secret-key-arch-linux-user")
-    ALGORITHMS = "HS256"
-    EXPIRED_TIME = 30
 
     expire = datetime.utcnow() + timedelta(minutes=EXPIRED_TIME)
     to_encode.update({"exp": expire})

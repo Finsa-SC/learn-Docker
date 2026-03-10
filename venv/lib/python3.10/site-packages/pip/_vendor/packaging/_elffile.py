@@ -4,6 +4,7 @@ ELF file parser.
 This provides a class ``ELFFile`` that parses an ELF executable in a similar
 interface to ``ZipFile``. Only the read interface is implemented.
 
+Based on: https://gist.github.com/lyssdod/f51579ae8d93c8657a5564aefc2ffbca
 ELF header: https://refspecs.linuxfoundation.org/elf/gabi4+/ch4.eheader.html
 """
 
@@ -47,8 +48,8 @@ class ELFFile:
 
         try:
             ident = self._read("16B")
-        except struct.error as e:
-            raise ELFInvalid("unable to parse identification") from e
+        except struct.error:
+            raise ELFInvalid("unable to parse identification")
         magic = bytes(ident[:4])
         if magic != b"\x7fELF":
             raise ELFInvalid(f"invalid magic: {magic!r}")
@@ -66,10 +67,11 @@ class ELFFile:
                 (2, 1): ("<HHIQQQIHHH", "<IIQQQQQQ", (0, 2, 5)),  # 64-bit LSB.
                 (2, 2): (">HHIQQQIHHH", ">IIQQQQQQ", (0, 2, 5)),  # 64-bit MSB.
             }[(self.capacity, self.encoding)]
-        except KeyError as e:
+        except KeyError:
             raise ELFInvalid(
-                f"unrecognized capacity ({self.capacity}) or encoding ({self.encoding})"
-            ) from e
+                f"unrecognized capacity ({self.capacity}) or "
+                f"encoding ({self.encoding})"
+            )
 
         try:
             (

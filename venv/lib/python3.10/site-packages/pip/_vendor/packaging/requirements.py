@@ -3,7 +3,7 @@
 # for complete details.
 from __future__ import annotations
 
-from typing import Iterator
+from typing import Any, Iterator
 
 from ._parser import parse_requirement as _parse_requirement
 from ._tokenizer import ParserSyntaxError
@@ -57,7 +57,7 @@ class Requirement:
             yield str(self.specifier)
 
         if self.url:
-            yield f" @ {self.url}"
+            yield f"@ {self.url}"
             if self.marker:
                 yield " "
 
@@ -68,12 +68,17 @@ class Requirement:
         return "".join(self._iter_parts(self.name))
 
     def __repr__(self) -> str:
-        return f"<{self.__class__.__name__}('{self}')>"
+        return f"<Requirement('{self}')>"
 
     def __hash__(self) -> int:
-        return hash(tuple(self._iter_parts(canonicalize_name(self.name))))
+        return hash(
+            (
+                self.__class__.__name__,
+                *self._iter_parts(canonicalize_name(self.name)),
+            )
+        )
 
-    def __eq__(self, other: object) -> bool:
+    def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Requirement):
             return NotImplemented
 

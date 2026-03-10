@@ -1,12 +1,16 @@
 from fastapi import FastAPI, HTTPException, status
+from fastapi.params import Depends
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jose import jwt, JWTError
 import psycopg2
 import time
-from security import hash_password, verify_password, create_access_token
+from security import hash_password, verify_password, create_access_token, SECURITY_KEY, ALGORITHMS
 from database import init_db
 from pydantic import BaseModel, Field
 from contextlib import asynccontextmanager
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+## init db
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Initializing database")
@@ -23,6 +27,7 @@ class userRegistry(BaseModel):
     password: str = Field(..., min_length=8, description="password minimum 8 character")
     confirmPassword: str = Field(..., min_length=8, description="confirm password, make sure the password is the same")
 
+## Init Env
 class Settings(BaseSettings):
     DB_USER: str
     DB_PASSWORD: str
@@ -71,12 +76,12 @@ def check_db():
     return {"database_version": db_version}
 
 @app.post("/login")
-def login(username: str, password: str):
+def login(form_data: OAuth2PasswordRequestForm = Depends()):
     conn = get_db_connection()
     cur = conn.cursor()
     try:
         cur.execute(
-            "SELECT password FROM users WHERE username = %s", (username,)
+            "SELECT password FROM users WHERE username = %s", (form_data.username,)
         )
         user = cur.fetchone()
         if not user:
@@ -85,9 +90,9 @@ def login(username: str, password: str):
                 detail="username or password wrong"
             )
         stored_password = user[0]
-        if verify_password(password, stored_password):
-            access_token = create_access_token({"sub": username})
-            return {"type_token": "bearer", "token": access_token}
+        if verify_password(form_data.password, stored_password):
+            access_token = create_access_token({"sub": form_data.username})
+            return {"access_token": access_token, "token_type": "bearer"}
         else:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -129,3 +134,19 @@ def register(user: userRegistry):
     finally:
         cur.close()
         conn.close()
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl='login')
+
+def get_current_user(token: str = Depends(oauth2_scheme)):
+    try:
+        payload = jwt.decode(token, SECURITY_KEY, algorithms=[ALGORITHMS])
+        username: str = payload.get("sub")
+        if username is None:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid Token")
+        return username
+    except JWTError:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "JWT token is corrupted or expired")
+
+@app.get("/me")
+def read_user(current_user: str = Depends(get_current_user)):
+    return {"username": current_user, "message": "user is still active"}
