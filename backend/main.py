@@ -1,11 +1,17 @@
 from fastapi import FastAPI, HTTPException, status
 import psycopg2
 import time
+
+from fastapi.params import Depends
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from security import hash_password, verify_password, create_access_token
 from database import init_db
 from pydantic import BaseModel, Field
 from contextlib import asynccontextmanager
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from jose import jwt, JWTError
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -71,12 +77,12 @@ def check_db():
     return {"database_version": db_version}
 
 @app.post("/login")
-def login(username: str, password: str):
+def login(form_data: OAuth2PasswordRequestForm = Depends()):
     conn = get_db_connection()
     cur = conn.cursor()
     try:
         cur.execute(
-            "SELECT password FROM users WHERE username = %s", (username,)
+            "SELECT password FROM users WHERE username = %s", (form_data.username,)
         )
         user = cur.fetchone()
         if not user:
@@ -85,9 +91,9 @@ def login(username: str, password: str):
                 detail="username or password wrong"
             )
         stored_password = user[0]
-        if verify_password(password, stored_password):
-            access_token = create_access_token({"sub": username})
-            return {"type_token": "bearer", "token": access_token}
+        if verify_password(form_data.password, stored_password):
+            access_token = create_access_token({"sub": form_data.username})
+            return {"access_token": access_token, "token_type": "bearer"}
         else:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -129,3 +135,20 @@ def register(user: userRegistry):
     finally:
         cur.close()
         conn.close()
+
+
+def get_current_user(token: str = Depends(oauth2_scheme)):
+    from security import SECURITY_KEY, ALGORITHMS
+
+    try:
+        payload = jwt.decode(token, SECURITY_KEY, algorithms=[ALGORITHMS])
+        username = payload.get("sub")
+        if username is None:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid Token")
+        return username
+    except JWTError:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "damaged or expired token")
+
+@app.get("/me")
+def whoami(current_user: str = Depends(get_current_user)):
+    return {"username": current_user, "message": "token still active until now"}
