@@ -45,6 +45,19 @@ except Exception as e:
 
 DATABASE_URL = f"postgresql://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.host}:5432/{settings.DB_NAME}"
 
+## token validation
+def get_current_user(token: str = Depends(oauth2_scheme)):
+    from security import SECURITY_KEY, ALGORITHMS
+
+    try:
+        payload = jwt.decode(token, SECURITY_KEY, algorithms=[ALGORITHMS])
+        username = payload.get("sub")
+        if username is None:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid Token")
+        return username
+    except JWTError:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "damaged or expired token")
+
 def get_db_connection():
     retries = 5
     while retries > 0:
@@ -67,14 +80,14 @@ def check_health():
     return {"status": "ok"}
 
 @app.get("/check-db")
-def check_db():
+def check_db(current_user: str = Depends(get_current_user)):
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute('SELECT version();')
     db_version = cur.fetchone()
     cur.close()
     conn.close()
-    return {"database_version": db_version}
+    return {"database_version": db_version, "access_by": current_user}
 
 @app.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
@@ -135,19 +148,6 @@ def register(user: userRegistry):
     finally:
         cur.close()
         conn.close()
-
-
-def get_current_user(token: str = Depends(oauth2_scheme)):
-    from security import SECURITY_KEY, ALGORITHMS
-
-    try:
-        payload = jwt.decode(token, SECURITY_KEY, algorithms=[ALGORITHMS])
-        username = payload.get("sub")
-        if username is None:
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid Token")
-        return username
-    except JWTError:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "damaged or expired token")
 
 @app.get("/me")
 def whoami(current_user: str = Depends(get_current_user)):
