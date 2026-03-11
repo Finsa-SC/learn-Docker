@@ -1,13 +1,12 @@
 import os
-
 from pwdlib import PasswordHash
 from jose import jwt
 from datetime import datetime, timedelta
 
 
-
 ## Password Management
 pwd_context = PasswordHash.recommended()
+
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
@@ -15,12 +14,16 @@ def hash_password(password: str) -> str:
 def verify_password(password_input: str, password: str) -> bool:
     return pwd_context.verify(password_input, password)
 
+
+# Token
+SECURITY_KEY = os.getenv("SECRET_KEY")
+if not SECURITY_KEY:
+    raise RuntimeError("No Security key set on environtment")
+ALGORITHMS = "HS256"
+EXPIRED_TIME = 30
+
 def create_access_token(data: dict):
     to_encode = data.copy()
-
-    SECURITY_KEY = os.getenv("SECRET_KEY", "super-secret-key-arch-linux-user")
-    ALGORITHMS = "HS256"
-    EXPIRED_TIME = 30
 
     expire = datetime.utcnow() + timedelta(minutes=EXPIRED_TIME)
     to_encode.update({"exp": expire})
